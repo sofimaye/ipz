@@ -1,0 +1,55 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+# Vagrant configuration
+Vagrant.configure("2") do |config|
+  # Docker settings
+  config.vm.provider "docker" do |docker|
+    docker.image = "lab01_3brm" # Specify the Docker image name
+    docker.privileged = true # Enable privileged mode if needed
+  end
+
+  # Port forwarding
+  config.vm.network "forwarded_port", guest: 80, host: 8032
+
+  # Provisioning (if needed)
+  config.vm.provision "shell", inline: <<-SHELL
+    # Update the list of available packages
+    sudo apt-get update
+
+    # Install Nginx
+    sudo apt-get install -y nginx
+
+    # Start Nginx service
+    sudo systemctl start nginx
+
+    # Configure Nginx to listen on port 80 (default)
+    # You may customize your Nginx configuration here as needed
+    echo "Configuring Nginx..."
+    sudo tee /etc/nginx/sites-available/default <<EOF
+    server {
+        listen 80;
+        server_name _;
+
+        location / {
+            proxy_pass http://localhost:8032; # Forward to the application running on port 8032
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+        }
+
+        # Additional Nginx configuration goes here...
+    }
+    EOF
+
+    # Enable the Nginx configuration
+    sudo ln -s /etc/nginx/sites-available/default /etc/nginx/sites-enabled/
+
+    # Restart Nginx to apply changes
+    sudo systemctl restart nginx
+
+    # Allow Nginx through the firewall (if applicable)
+    sudo ufw allow 'Nginx HTTP'
+
+    echo "Nginx is installed and configured."
+  SHELL
+end
